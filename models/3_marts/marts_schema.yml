@@ -1,0 +1,633 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: Standard date dimension
+    config:
+      contract:
+        enforced: true # cross check DDL from database against definition in this yml file, raise error if discrepancies are found
+    columns:
+      - name: cal_dt
+        data_type: date
+        description: Calendar date (E.g. 2023-03-31)
+        constraints:
+          - type: not_null # enforced in snowflake
+          - type: unique # not enforced in snowflake
+            warn_unenforced: false # skip warning on constraints that are supported, but not enforced
+        tests:
+          - unique # unique test required because unique key constraint is not enforced in snowflake
+      - name: cal_dt_id
+        data_type: number
+        description: Date identifier, date in YYYYMMDD format (E.g. 20230331)
+        constraints:
+          - type: not_null # enforced in snowflake
+          - type: primary_key # not enforced in snowflake
+            warn_unenforced: false # skip warning on constraints that are supported, but not enforced
+        tests:
+          - unique # unique test required because primary key constraint is not enforced in snowflake
+      - name: cal_dt_time_start
+        data_type: timestamp_ntz
+        description: Starting timestamp of the calendar date (E.g. 2023-03-31 00:00:00.000)
+      - name: cal_dt_time_end
+        data_type: timestamp_ntz
+        description: Ending timestamp of the calendar date (E.g. 2023-03-31 23:59:59.999)
+      - name: cal_day
+        data_type: varchar
+        description: Abbreviated name of the day of the week (E.g. Fri)
+      - name: cal_month
+        data_type: varchar
+        description: Calendar month, represented in Mon-YYYY format (E.g. Mar-2023)
+      - name: cal_month_id
+        data_type: number
+        description: Calendar month identifier, month's start date in YYYYMMDD format (E.g. 20230301)
+      - name: month_name
+        data_type: varchar
+        description: Abbreviated name of the month (E.g. Mar)
+      - name: month_number
+        data_type: number
+        description: Calendar month number (E.g. 3)
+      - name: month_start_dt
+        data_type: timestamp_ntz
+        description: Starting timestamp of the calendar month (E.g. 2023-03-01 00:00:00.000)
+      - name: month_end_dt
+        data_type: timestamp_ntz
+        description: Ending timestamp of the calendar month (E.g. 2023-03-31 23:59:59.999)
+      - name: cal_qtr
+        data_type: varchar
+        description: Calendar quarter in YYYY Q# format (E.g. 2023 Q1)
+      - name: cal_qtr_id
+        data_type: number
+        description: Calendar quarter identifier (E.g. 20230101)
+      - name: qtr_number
+        data_type: number
+        description: Calendar quarter number (E.g. 1)
+      - name: qtr_start_dt
+        data_type: timestamp_ntz
+        description: Starting timestamp of the calendar quarter (E.g. 2023-01-01 00:00:00.000)
+      - name: qtr_end_dt
+        data_type: timestamp_ntz
+        description: Ending timestamp of the calendar quarter (E.g. 2023-03-31 23:59:59.999)
+      - name: cal_year
+        data_type: number
+        description: Calendar year (E.g. 2023)
+      - name: year_start_dt
+        data_type: timestamp_ntz
+        description: Starting timestamp of the calendar year (E.g. 2023-01-01 00:00:00.000)
+      - name: year_end_dt
+        data_type: timestamp_ntz
+        description: Ending timestamp of the calendar year (E.g. 2023-12-31 23:59:59.999)
+
+  - name: dim_workspace
+    description: Workspace dimension table, contains one row per EDL customer workspace
+    config:
+      contract:
+        enforced: true # cross check DDL from database against definition in this yml file, raise error if discrepancies are found
+      meta:
+        surrogate_key: true # so that a sequence generated surrogate key can be used
+    constraints:
+      - type: unique
+        columns: [workspace_code, effective_from_dt]
+      - type: unique
+        columns: [workspace_code, effective_to_dt]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - workspace_code
+            - effective_from_dt
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - workspace_code
+            - effective_to_dt
+    columns:
+      - name: workspace_id
+        data_type: number
+        description: System generated unique identifier for a workspace.
+        constraints:
+          - type: not_null # enforced in snowflake
+          - type: primary_key # not enforced in snowflake
+        tests:
+          - unique # unique test required because primary key constraint is not enforced in snowflake
+      - name: workspace_code
+        data_type: varchar
+        description: Unique alphanumeric identifier for a workspace, usually a abbreviated concatenation of health service and/or project using the workspace.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: workspace_name
+        data_type: varchar
+        description: Elaborate name of the workspace.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: workspace_desc
+        data_type: varchar
+        description: Description of the workspace as entered by workspace owner in the SARA request form.
+      - name: project_code
+        data_type: varchar
+        description: Short code of the project using this workspace. Projects can have multiple workspaces.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: project_name
+        data_type: varchar
+        description: Elaborate name of the project using this workspace.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: project_desc
+        data_type: varchar
+        description: Description of the project using this workspace.
+      - name: customer_name
+        data_type: varchar
+        description: Name of the customer responsible for paying workspace costs. This name matches the official name of the customer in Apptio.
+      - name: billable_flg
+        data_type: boolean
+        description: Indicates if the workspace costs are passed on to the customer (true) or not (false).
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: billing_start_dt
+        data_type: timestamp_ntz
+        description: Starting timestamp from which workspaces costs are passed on to the customer via Apptio. Null if billable_flg is false.
+      - name: billing_end_dt
+        data_type: timestamp_ntz
+        description: Ending timestamp until which workspaces costs are passed on to the customer via Apptio. Null if billable_flg is false.
+      - name: bill_to_cost_center
+        data_type: varchar
+        description: Finance cost center to which workspace costs are billed to.
+      - name: bill_to_otl_code
+        data_type: varchar
+        description: Optional Oracle Time and Labour code to which workspace costs are billed to. Usually empty for non-eHealth entities.
+      - name: delete_flg
+        data_type: boolean
+        description: Indicates if the record is deleted (true). Default value is false.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: insert_dt
+        data_type: timestamp_ntz
+        description: Timestamp when this record was inserted into the database.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: update_dt
+        data_type: timestamp_ntz
+        description: Timestamp when this record was last updated in the database.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: effective_from_dt
+        data_type: timestamp_ntz
+        description: SCD2 starting timestamp from which this record was active.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: effective_to_dt
+        data_type: timestamp_ntz
+        description: SCD2 ending timestamp until which this record was active. Default value is 9999-12-31 00:00:00.
+        constraints:
+          - type: not_null # enforced in snowflake
+
+  - name: meta_subscriptions
+    description: Metadata table containing detailed information about customers' subscribed tables.
+    config:
+      contract:
+        enforced: true # cross check DDL from database against definition in this yml file, raise error if discrepancies are found
+        warn_unenforced: false # skip warning on constraints that are supported, but not enforced
+      meta:
+        surrogate_key: true # so that a sequence generated surrogate key can be used
+    constraints:
+      - type: unique # not enforced in snowflake
+        columns: [workspace_code, subscription_start_dt, source_system_name, source_instance_name, source_schema_name, source_table_name, effective_from_dt]
+    tests:
+      - dbt_utils.unique_combination_of_columns: # unique test required because unique key constraint is not enforced in snowflake
+          combination_of_columns:
+            - workspace_code
+            - subscription_start_dt
+            - source_system_name
+            - source_instance_name
+            - source_schema_name
+            - source_table_name
+            - effective_from_dt
+    columns:
+      - name: subscription_id
+        data_type: number
+        description: System generated unique identifier for a subscription.
+        constraints:
+          - type: not_null # enforced in snowflake
+          - type: primary_key # not enforced in snowflake
+        tests:
+          - unique # unique test required because primary key constraint is not enforced in snowflake
+      - name: workspace_code
+        data_type: varchar
+        description: Unique alphanumeric identifier for a workspace, usually a abbreviated concatenation of health service and/or project using the workspace.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: subscription_start_dt
+        data_type: timestamp_ntz
+        description: Starting timestamp (in the local timezone) of the subscription.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: subscription_end_dt
+        data_type: timestamp_ntz
+        description: Ending timestamp (in the local timezone) of the subscription. Default value is 9999-12-31 00:00:00.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: source_system_name
+        data_type: varchar
+        description: Name of the source system that contains the subscribed table. E.g. CERNER
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: source_instance_name
+        data_type: varchar
+        description: Name of the source system instance that contains the subscribed table. E.g. GSGW
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: source_schema_name
+        data_type: varchar
+        description: Name of the source database schema that owns the subscribed table. E.g. V500
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: source_table_name
+        data_type: varchar
+        description: Name of the source table to which the customer has subscribed to. E.g. ENCOUNTER
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: target_database_name
+        data_type: varchar
+        description: Name of the data lake database that owns and stores the subscribed table.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: target_schema_name
+        data_type: varchar
+        description: Name of the data lake database schema that owns the subscribed table. Usually upper(source_schema_name).
+      - name: target_table_name
+        data_type: varchar
+        description: Name of the subscribed table. Usually upper(source_table_name).
+      - name: data_refresh_frequency_mins
+        data_type: number
+        description: Number of minutes between successive scheduled data refreshes. E.g. 1440 for daily refreshes.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: realtime_flg
+        data_type: boolean
+        description: Indicates if the requested data refresh frequency is near realtime (true).
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: comments
+        data_type: varchar
+        description: Additional information or comments about the table subscription.
+      - name: delete_flg
+        data_type: boolean
+        description: Indicates if the record is deleted (true). Default value is false.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: insert_dt
+        data_type: timestamp_ntz
+        description: Timestamp when this record was inserted into the database.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: update_dt
+        data_type: timestamp_ntz
+        description: Timestamp when this record was last updated in the database.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: effective_from_dt
+        data_type: timestamp_ntz
+        description: SCD2 starting timestamp from which this record was active.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: effective_to_dt
+        data_type: timestamp_ntz
+        description: SCD2 ending timestamp until which this record was active. Default value is 9999-12-31 00:00:00.
+        constraints:
+          - type: not_null # enforced in snowflake
+
+  - name: fact_storage_costs
+    description: >
+      Contains detailed breakdown of EDL storage costs. Storage costs include the cost of:
+      1. files stored in Snowflake for bulk data loading,
+      2. data stored in the data lake tables including historical data maintained for time travel (always compressed by Snowflake),
+      3. data stored in the workspace tables including historical data maintained for time travel (always compressed by Snowflake),
+      4. data maintained for fail-safe (always compressed by Snowflake), and
+      5. clones of database tables that reference data deleted in the table that owns the clones.
+    config:
+      contract:
+        enforced: true # cross check DDL from database against definition in this yml file, raise error if discrepancies are found
+        warn_unenforced: false # skip warning on constraints that are supported, but not enforced
+    constraints:
+      - type: primary_key # not enforced in snowflake
+        columns: [workspace_id, usage_dt_id, table_id]
+    tests:
+      - dbt_utils.unique_combination_of_columns: # unique test required because unique key constraint is not enforced in snowflake
+          combination_of_columns:
+            - workspace_id
+            - usage_dt_id
+            - table_id
+    columns:
+      - name: workspace_id
+        data_type: number
+        description: System generated unique identifier for a workspace.
+        constraints:
+          - type: not_null # enforced in snowflake
+          - type: foreign_key # not enforced in snowflake
+            expression: dim_workspace (workspace_id)
+      - name: usage_dt_id
+        data_type: number
+        description: Usage date identifier, date in YYYYMMDD format (E.g. 20230331).
+        constraints:
+          - type: not_null # enforced in snowflake
+          - type: foreign_key # not enforced in snowflake
+            expression: dim_date (cal_dt_id)
+      - name: usage_dt
+        data_type: date
+        description: Date for which the storage costs are calculated.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: database_id
+        data_type: number
+        description: Unique identifier for the database of the table.
+      - name: database_name
+        data_type: varchar
+        description: Database that the table belongs to.
+      - name: schema_id
+        data_type: number
+        description: Unique identifier for the schema of the table.
+      - name: schema_name
+        data_type: varchar
+        description: Schema that the table belongs to.
+      - name: table_id
+        data_type: number
+        description: Unique identifier for the table.
+      - name: table_name
+        data_type: varchar
+        description: Name of the table.
+      - name: is_transient_flg
+        data_type: boolean
+        description: True if table is transient or temporary, otherwise False. Transient and temporary tables have no fail-safe period.
+      - name: is_deleted_flg
+        data_type: boolean
+        description: True if table has been purged from storage.
+      - name: comments
+        data_type: varchar
+        description: Additional pertinent information.
+      - name: active_bytes
+        data_type: number
+        description: Bytes owned by (and billed to) this table that are in the active state for the table.
+      - name: time_travel_bytes
+        data_type: number
+        description: Bytes owned by (and billed to) this table that are in the time travel state for the table.
+      - name: failsafe_bytes
+        data_type: number
+        description: Bytes owned by (and billed to) this table that are in the fail-safe state for the table.
+      - name: retained_for_clone_bytes
+        data_type: number
+        description: Bytes owned by (and billed to) this table that are retained after deletion because of one or more clones of this table.
+      - name: total_bytes
+        data_type: number
+        description: Total bytes owned by (and billed to) this table. Calculated as active_bytes + time_travel_bytes + failsafe_bytes + retained_for_clone_bytes.
+      - name: total_storage_costs_usd
+        data_type: number(38,5)
+        description: Total storage costs for this table in USD.
+      - name: delete_flg
+        data_type: boolean
+        description: Indicates if the record is deleted (true). Default value is false.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: insert_dt
+        data_type: timestamp_ntz
+        description: Timestamp when this record was inserted into the database.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: update_dt
+        data_type: timestamp_ntz
+        description: Timestamp when this record was last updated in the database.
+        constraints:
+          - type: not_null # enforced in snowflake
+
+  - name: fact_consumption_costs
+    description: >
+      Contains detailed breakdown of EDL consumption costs. Consumption costs include the cost of:
+      1. virtual warehouses used by consumption programs
+      2. snowflake cloud services used by consumption programs
+      3. automated background maintenance (initial clustering and reclustering) of clustered tables in workspace databases
+      4. automated background synchronization of materialized views with changes in base tables in workspace databases
+      5. automated background maintenance of the search access paths used by the search optimization service
+      6. automated copying of data between accounts, at database level
+      7. execution of portions of query accerelation eligible queries, at warehouse level
+      8. execution of snowflake-managed serverless tasks, at database level
+      9. automated processing of file loading requests using snowpipes, at database level.
+    config:
+      contract:
+        enforced: true # cross check DDL from database against definition in this yml file, raise error if discrepancies are found
+        warn_unenforced: false # skip warning on constraints that are supported, but not enforced
+    constraints:
+      - type: primary_key # not enforced in snowflake
+        columns: [workspace_id, usage_dt_id, warehouse_id]
+    tests:
+      - dbt_utils.unique_combination_of_columns: # unique test required because unique key constraint is not enforced in snowflake
+          combination_of_columns:
+            - workspace_id
+            - usage_dt_id
+            - warehouse_id
+    columns:
+      - name: workspace_id
+        data_type: number
+        description: System generated unique identifier for a workspace.
+        constraints:
+          - type: not_null # enforced in snowflake
+          - type: foreign_key # not enforced in snowflake
+            expression: dim_workspace (workspace_id)
+      - name: usage_dt_id
+        data_type: number
+        description: Usage date identifier, date in YYYYMMDD format (E.g. 20230331).
+        constraints:
+          - type: not_null # enforced in snowflake
+          - type: foreign_key # not enforced in snowflake
+            expression: dim_date (cal_dt_id)
+      - name: usage_dt
+        data_type: date
+        description: Date for which the consumption costs are calculated.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: warehouse_id
+        data_type: number
+        description: Unique identifier for the compute engine.
+      - name: warehouse_name
+        data_type: varchar
+        description: Database that the table belongs to.
+      - name: comments
+        data_type: varchar
+        description: Additional pertinent information.
+      - name: compute_costs_usd
+        data_type: number(38,5)
+        description: Cost of virtual warehouses used by consumption programs.
+      - name: cloud_services_costs_usd
+        data_type: number(38,5)
+        description: Cost of snowflake cloud services used by consumption programs.
+      - name: auto_clustering_costs_usd
+        data_type: number(38,5)
+        description: Cost of automated background maintenance (initial clustering and reclustering) of clustered tables in WS databases.
+      - name: mv_refresh_costs_usd
+        data_type: number(38,5)
+        description: Cost of automated background synchronization of materialized views with changes in base tables in WS databases.
+      - name: search_optimization_costs_usd
+        data_type: number(38,5)
+        description: Cost of automated background maintenance of the search access paths used by the search optimization service.
+      - name: database_replication_costs_usd
+        data_type: number(38,5)
+        description: Cost of automated copying of data between accounts, at database level.
+      - name: query_acceleration_costs_usd
+        data_type: number(38,5)
+        description: Cost of execution of portions of query accerelation eligible queries, at warehouse level.
+      - name: serverless_task_costs_usd
+        data_type: number(38,5)
+        description: Cost of execution of snowflake-managed serverless tasks, at database level.
+      - name: snowpipe_costs_usd
+        data_type: number(38,5)
+        description: Cost of automated processing of file loading requests using snowpipes, at database level.
+      - name: other_consumption_costs_usd
+        data_type: number(38,5)
+        description: Other unclassified consumption costs.
+      - name: total_consumption_costs_usd
+        data_type: number(38,5)
+        description: Sum of all consumption cost classifications listed above.
+      - name: delete_flg
+        data_type: boolean
+        description: Indicates if the record is deleted (true). Default value is false.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: insert_dt
+        data_type: timestamp_ntz
+        description: Timestamp when this record was inserted into the database.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: update_dt
+        data_type: timestamp_ntz
+        description: Timestamp when this record was last updated in the database.
+        constraints:
+          - type: not_null # enforced in snowflake
+
+  - name: fact_ingestion_costs
+    description: >
+      Contains detailed breakdown of EDL ingestion costs incurred by  programs that keep EDL data up-to-date. Ingestion costs include the cost of:
+      1. virtual warehouses used by ingestion programs
+      2. snowflake cloud services used by ingestion programs
+      3. automated background maintenance (initial clustering and reclustering) of clustered tables in EDL databases
+      4. automated background synchronization of materialized views with changes in base tables in EDL databases
+      5. automated background maintenance of the search access paths used by the search optimization service
+      6. automated copying of data between accounts, at database level
+      7. execution of portions of query accerelation eligible queries, at warehouse level
+      8. execution of snowflake-managed serverless tasks, at database level
+      9. automated processing of file loading requests using snowpipes, at database level.
+    config:
+      contract:
+        enforced: true # cross check DDL from database against definition in this yml file, raise error if discrepancies are found
+        warn_unenforced: false # skip warning on constraints that are supported, but not enforced
+    constraints:
+      - type: primary_key # not enforced in snowflake
+        columns: [workspace_id, usage_dt_id, database_name, schema_name, table_name, warehouse_id, ingestion_type]
+    tests:
+      - dbt_utils.unique_combination_of_columns: # unique test required because unique key constraint is not enforced in snowflake
+          combination_of_columns:
+            - workspace_id
+            - usage_dt_id
+            - database_name
+            - schema_name
+            - table_name
+            - warehouse_id
+            - ingestion_type
+    columns:
+      - name: workspace_id
+        data_type: number
+        description: System generated unique identifier for a workspace.
+        constraints:
+          - type: not_null # enforced in snowflake
+          - type: foreign_key # not enforced in snowflake
+            expression: dim_workspace (workspace_id)
+      - name: usage_dt_id
+        data_type: number
+        description: Usage date identifier, date in YYYYMMDD format (E.g. 20230331).
+        constraints:
+          - type: not_null # enforced in snowflake
+          - type: foreign_key # not enforced in snowflake
+            expression: dim_date (cal_dt_id)
+      - name: usage_dt
+        data_type: date
+        description: Date for which the consumption costs are calculated.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: database_name
+        data_type: varchar
+        description: Name of the database that contains the table.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: schema_name
+        data_type: varchar
+        description: Name of the schema that contains the table.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: table_name
+        data_type: varchar
+        description: Name of the table.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: source_table_name
+        data_type: varchar
+        description: Name of the source table.
+      - name: refresh_frequency
+        data_type: number
+        description: Data refresh frequency.
+      - name: ingestion_type
+        data_type: varchar
+        description: Indicates the type of ingestion (bulk, incremental, catchup, realtime, etc).
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: warehouse_id
+        data_type: number
+        description: Unique identifier for the compute engine.
+      - name: warehouse_name
+        data_type: varchar
+        description: Database that the table belongs to.
+      - name: comments
+        data_type: varchar
+        description: Additional pertinent information.
+      - name: compute_costs_usd
+        data_type: number(38,5)
+        description: Cost of virtual warehouses used by ingestion programs.
+      - name: cloud_services_costs_usd
+        data_type: number(38,5)
+        description: Cost of snowflake cloud services used by ingestion programs.
+      - name: auto_clustering_costs_usd
+        data_type: number(38,5)
+        description: Cost of automated background maintenance (initial clustering and reclustering) of clustered tables in EDL databases.
+      - name: mv_refresh_costs_usd
+        data_type: number(38,5)
+        description: Cost of automated background synchronization of materialized views with changes in base tables in EDL databases.
+      - name: search_optimization_costs_usd
+        data_type: number(38,5)
+        description: Cost of automated background maintenance of the search access paths used by the search optimization service.
+      - name: database_replication_costs_usd
+        data_type: number(38,5)
+        description: Cost of automated copying of data between accounts, at database level.
+      - name: query_acceleration_costs_usd
+        data_type: number(38,5)
+        description: Cost of execution of portions of query accerelation eligible queries, at warehouse level.
+      - name: serverless_task_costs_usd
+        data_type: number(38,5)
+        description: Cost of execution of snowflake-managed serverless tasks, at database level.
+      - name: snowpipe_costs_usd
+        data_type: number(38,5)
+        description: Cost of automated processing of file loading requests using snowpipes, at database level.
+      - name: other_ingestion_costs_usd
+        data_type: number(38,5)
+        description: Other unclassified ingestion costs.
+      - name: total_ingestion_costs_usd
+        data_type: number(38,5)
+        description: Sum of all ingestion cost classifications listed above.
+      - name: delete_flg
+        data_type: boolean
+        description: Indicates if the record is deleted (true). Default value is false.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: insert_dt
+        data_type: timestamp_ntz
+        description: Timestamp when this record was inserted into the database.
+        constraints:
+          - type: not_null # enforced in snowflake
+      - name: update_dt
+        data_type: timestamp_ntz
+        description: Timestamp when this record was last updated in the database.
+        constraints:
+          - type: not_null # enforced in snowflake
